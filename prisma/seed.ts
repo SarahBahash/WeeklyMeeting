@@ -50,7 +50,10 @@ async function main() {
     console.log(`Bootstrap administrator ensured: ${adminEmail}`);
   }
 
-  if (!isProd && process.env.AUTH_LOCAL_ENABLED === "true") {
+  const demoMode = process.env.DEMO_MODE === "true";
+  if (demoMode && !process.env.SEED_DEV_PASSWORD) {
+    console.warn("DEMO_MODE is on but SEED_DEV_PASSWORD is empty – test accounts were not created.");
+  } else if (demoMode || (!isProd && process.env.AUTH_LOCAL_ENABLED === "true")) {
     const password = process.env.SEED_DEV_PASSWORD || randomBytes(12).toString("base64url");
     const hash = await bcrypt.hash(password, 12);
     const users = [
@@ -62,9 +65,9 @@ async function main() {
     for (const u of users) {
       await prisma.user.upsert({ where: { email: u.email }, update: { passwordHash: hash }, create: { ...u, passwordHash: hash } });
     }
-    console.log("Synthetic development users (local sign-in, development only):");
+    console.log(`Synthetic test users (local sign-in, ${demoMode ? "TEST/DEMO mode" : "development only"}):`);
     for (const u of users) console.log(`  ${u.role.padEnd(6)} ${u.email}${u.canOrganizeMeetings ? " (meeting organizer)" : ""}`);
-    console.log(`  Password: ${process.env.SEED_DEV_PASSWORD ? "(value of SEED_DEV_PASSWORD)" : password}`);
+    console.log(`  Password: ${process.env.SEED_DEV_PASSWORD ? "(value of SEED_DEV_PASSWORD – not printed)" : password}`);
   }
 }
 

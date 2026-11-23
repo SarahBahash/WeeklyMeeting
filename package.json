@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "next dev -p 3000",
     "build": "next build",
-    "start": "next start -p 3000",
+    "start": "next start -p ${PORT:-3000}",
     "lint": "tsc --noEmit",
     "db:migrate": "prisma migrate deploy",
     "db:migrate:dev": "prisma migrate dev",
@@ -15,7 +15,9 @@
     "synthetic:workbook": "tsx scripts/generate-synthetic-workbook.ts",
     "test": "vitest run tests/unit",
     "test:integration": "vitest run tests/integration --no-file-parallelism",
-    "postinstall": "prisma generate"
+    "postinstall": "prisma generate",
+    "demo:data": "NODE_OPTIONS=--conditions=react-server tsx scripts/demo-data.ts",
+    "start:demo": "prisma migrate deploy && tsx prisma/seed.ts && npm run demo:data && npm start"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"
@@ -44,5 +46,8 @@
     "tsx": "^4.23.15",
     "typescript": "5.9",
     "vitest": "3.2"
+  },
+  "engines": {
+    "node": ">=22 <23"
   }
 }

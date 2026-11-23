@@ -65,6 +65,16 @@ Then go to **Administration → Import Data** and import the synthetic workbook.
 Local password sign-in is a **development-only** feature. It is switched off automatically when
 `NODE_ENV=production`, whatever `AUTH_LOCAL_ENABLED` says. Production uses SSO only.
 
+## Test deployment on Render (synthetic data only)
+
+[![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/SarahBahash/WeeklyMeeting)
+
+`render.yaml` creates a free PostgreSQL database and the web app in Render's Frankfurt region.
+On first start the app creates the tables, the test accounts and the synthetic sample data.
+`DEMO_MODE=true` turns on password sign-in for the four synthetic test accounts (password chosen
+during setup) and shows a "TEST ENVIRONMENT" banner on every page.
+**Never use a demo-mode site for real Internal Audit data.** Render's free database expires after 30 days.
+
 ## Tests
 
 ```bash

@@ -20,6 +20,7 @@ See `.env.example` for the full list.
 | `IMPORT_MAX_UPLOAD_BYTES` | | Default 10 MB. |
 | `SEED_ADMIN_EMAIL` / `SEED_ADMIN_NAME` | first run | Creates the first administrator, who signs in via SSO. |
 | `AUTH_LOCAL_ENABLED`, `SEED_DEV_PASSWORD`, `OIDC_ALLOW_INSECURE_HTTP_FOR_TESTING` | | **Development and testing only. Ignored when `NODE_ENV=production`.** |
+| `DEMO_MODE` | **never in production** | Test/demo sites with synthetic data only: enables password sign-in for the synthetic test accounts (password from `SEED_DEV_PASSWORD`), shows a permanent TEST banner, and loads the sample workbook into an empty database (`npm run start:demo`). Used by `render.yaml`. |
 
 ## SSO registration
 

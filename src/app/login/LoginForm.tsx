@@ -4,7 +4,7 @@ import { useRouter } from "next/navigation";
 import { Button, Field } from "@/components/ui";
 import { api, ApiClientError } from "@/lib/client";
 
-export function LoginForm() {
+export function LoginForm({ demo = false }: { demo?: boolean }) {
   const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -28,7 +28,7 @@ export function LoginForm() {
       <Field label="Email" htmlFor="email"><input id="email" type="email" autoComplete="username" className="input" value={email} onChange={(e) => setEmail(e.target.value)} required /></Field>
       <Field label="Password" htmlFor="password"><input id="password" type="password" autoComplete="current-password" className="input" value={password} onChange={(e) => setPassword(e.target.value)} required /></Field>
       {error && <p className="text-sm text-danger" role="alert">{error}</p>}
-      <Button type="submit" variant="secondary" className="w-full" loading={loading}>Sign in (development)</Button>
+      <Button type="submit" variant={demo ? "primary" : "secondary"} className="w-full" loading={loading}>{demo ? "Sign in" : "Sign in (development)"}</Button>
     </form>
   );
 }

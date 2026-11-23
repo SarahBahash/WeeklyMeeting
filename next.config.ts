@@ -3,7 +3,8 @@ import type { NextConfig } from "next";
 const nextConfig: NextConfig = {
   poweredByHeader: false,
   reactStrictMode: true,
-  output: "standalone",
+  // Standalone output is used for the container image (see Dockerfile); `next start` uses the normal build.
+  output: process.env.NEXT_OUTPUT_STANDALONE === "true" ? "standalone" : undefined,
   serverExternalPackages: ["exceljs", "bcryptjs"],
   experimental: { serverActions: { bodySizeLimit: "1mb" } },
   async headers() {

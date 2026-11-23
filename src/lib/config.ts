@@ -2,6 +2,13 @@ import "server-only";
 
 export const isProduction = process.env.NODE_ENV === "production";
 
+/**
+ * TEST / DEMO deployments with SYNTHETIC data only. Enables password sign-in for the
+ * synthetic test accounts and shows a permanent warning banner. Never enable it on an
+ * environment that holds real Internal Audit information – production uses SSO only.
+ */
+export const demoMode = process.env.DEMO_MODE === "true";
+
 function int(name: string, fallback: number) {
   const v = Number(process.env[name]);
   return Number.isFinite(v) && v > 0 ? v : fallback;
@@ -12,7 +19,7 @@ export const config = {
   sessionIdleMinutes: int("SESSION_IDLE_MINUTES", 60),
   sessionAbsoluteHours: int("SESSION_ABSOLUTE_HOURS", 10),
   /** Local password login is for development with synthetic data only. It can never be enabled in production. */
-  localAuthEnabled: !isProduction && process.env.AUTH_LOCAL_ENABLED === "true",
+  localAuthEnabled: demoMode || (!isProduction && process.env.AUTH_LOCAL_ENABLED === "true"),
   oidc: {
     issuer: process.env.OIDC_ISSUER_URL ?? "",
     clientId: process.env.OIDC_CLIENT_ID ?? "",

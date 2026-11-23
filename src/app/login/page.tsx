@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import { ShieldCheck } from "lucide-react";
 import { getSessionUser } from "@/lib/auth/session";
-import { config, oidcConfigured } from "@/lib/config";
+import { config, demoMode, oidcConfigured } from "@/lib/config";
 import { LoginForm } from "./LoginForm";
 
 const ERRORS: Record<string, string> = {
@@ -27,17 +27,19 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
         </div>
         <div className="card p-6 shadow-card">
           {error && ERRORS[error] && <p className="mb-4 rounded-md border border-danger/30 bg-danger-light px-3 py-2 text-sm text-danger" role="alert">{ERRORS[error]}</p>}
-          <a href="/api/auth/oidc/login" aria-disabled={!oidcConfigured()}
+          {(!demoMode || oidcConfigured()) && <a href="/api/auth/oidc/login" aria-disabled={!oidcConfigured()}
             className={`flex w-full items-center justify-center rounded-md px-4 py-2.5 text-sm font-medium ${oidcConfigured() ? "bg-brand text-white hover:bg-brand-dark" : "pointer-events-none border border-line bg-navy-50 text-muted"}`}>
             Sign in with {config.oidc.displayName}
-          </a>
-          {!oidcConfigured() && <p className="mt-2 text-center text-xs text-muted">SSO is not configured in this environment.</p>}
+          </a>}
+          {!oidcConfigured() && !demoMode && <p className="mt-2 text-center text-xs text-muted">SSO is not configured in this environment.</p>}
           {config.localAuthEnabled && (
-            <div className="mt-6 border-t border-line pt-5">
+            <div className={demoMode && !oidcConfigured() ? "" : "mt-6 border-t border-line pt-5"}>
               <p className="mb-3 rounded-md border border-warn/30 bg-warn-light px-3 py-2 text-xs text-warn">
-                Development sign-in (synthetic test users only). This option is automatically disabled in production.
+                {demoMode
+                  ? "Test environment: sign in with a synthetic test account (admin@example.test, organizer@example.test, editor@example.test or viewer@example.test)."
+                  : "Development sign-in (synthetic test users only). This option is automatically disabled in production."}
               </p>
-              <LoginForm />
+              <LoginForm demo={demoMode} />
             </div>
           )}
         </div>
