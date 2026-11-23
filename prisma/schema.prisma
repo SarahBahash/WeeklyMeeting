@@ -1,0 +1,495 @@
+// IA Weekly Meeting Hub - relational schema (PostgreSQL)
+// All business dates (target dates, meeting dates) are calendar dates stored as
+// PostgreSQL DATE (no time component, no timezone shift). "Today" is computed in
+// Asia/Riyadh by the application.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  ADMIN
+  EDITOR
+  VIEWER
+}
+
+enum ActionStatus {
+  NOT_STARTED
+  IN_PROGRESS
+  ON_HOLD
+  COMPLETED
+  CLOSED
+}
+
+enum Priority {
+  HIGH
+  MEDIUM
+  LOW
+}
+
+enum StageStatus {
+  NOT_STARTED
+  IN_PROGRESS
+  COMPLETED
+  NOT_APPLICABLE
+}
+
+enum MeetingStatus {
+  DRAFT
+  FINALIZED
+}
+
+enum ReviewState {
+  PENDING
+  REVIEWED
+  SKIPPED
+}
+
+enum ChangeSource {
+  IMPORT
+  FORM
+  QUICK_EDIT
+  MEETING
+  ADMIN_CORRECTION
+  HISTORICAL_MERGE
+}
+
+enum DeadlineChangeKind {
+  REVISION
+  ORIGINAL_CORRECTION
+}
+
+enum ImportKind {
+  MAIN_TRACKER
+  HISTORICAL
+  STAGE_TEMPLATE
+}
+
+enum ImportStatus {
+  PREVIEW
+  COMMITTED
+  CANCELLED
+}
+
+enum LegacyDecision {
+  PENDING
+  RETAIN
+  MERGE
+  SKIP
+}
+
+// ---------------------------------------------------------------- Users / auth
+
+model User {
+  id                  String    @id @default(cuid())
+  email               String    @unique
+  name                String
+  role                Role      @default(VIEWER)
+  canOrganizeMeetings Boolean   @default(false)
+  isActive            Boolean   @default(true)
+  oidcSubject         String?   @unique
+  // Only used by the local development login (disabled in production).
+  passwordHash        String?
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+  lastLoginAt         DateTime?
+
+  sessions            Session[]
+  createdActionPoints ActionPoint[]       @relation("ApCreatedBy")
+  updatedActionPoints ActionPoint[]       @relation("ApUpdatedBy")
+  changes             ActionPointChange[] @relation("ChangeBy")
+  deadlineChanges     DeadlineChange[]    @relation("DeadlineBy")
+  organizedMeetings   Meeting[]           @relation("MeetingOrganizer")
+  meetingUpdates      MeetingUpdate[]     @relation("UpdateBy")
+  meetingRevisions    MeetingRevision[]   @relation("RevisionBy")
+  imports             ImportBatch[]       @relation("ImportBy")
+  exports             ExportLog[]         @relation("ExportBy")
+
+  @@map("users")
+}
+
+model Session {
+  id         String   @id @default(cuid())
+  // SHA-256 of the random session token; the raw token only lives in the cookie.
+  tokenHash  String   @unique
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt  DateTime @default(now())
+  lastSeenAt DateTime @default(now())
+  expiresAt  DateTime
+  ip         String?
+  userAgent  String?
+
+  @@index([userId])
+  @@index([expiresAt])
+  @@map("sessions")
+}
+
+// ---------------------------------------------------------------- Reference data
+
+model ActivityType {
+  id             String        @id @default(cuid())
+  code           String        @unique
+  name           String
+  // When true, the audit lifecycle / stage controls are shown.
+  supportsStages Boolean       @default(false)
+  sortOrder      Int           @default(0)
+  isActive       Boolean       @default(true)
+  actionPoints   ActionPoint[]
+
+  @@map("activity_types")
+}
+
+model Project {
+  id           String         @id @default(cuid())
+  name         String         @unique
+  description  String?
+  isAudit      Boolean        @default(false)
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+  actionPoints ActionPoint[]
+  stages       ProjectStage[]
+
+  @@map("projects")
+}
+
+model AuditStageTemplate {
+  id          String                    @id @default(cuid())
+  name        String                    @unique
+  description String?
+  isDefault   Boolean                   @default(false)
+  sourceNote  String?
+  createdAt   DateTime                  @default(now())
+  updatedAt   DateTime                  @updatedAt
+  stages      AuditStageTemplateStage[]
+
+  @@map("audit_stage_templates")
+}
+
+model AuditStageTemplateStage {
+  id         String             @id @default(cuid())
+  templateId String
+  template   AuditStageTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
+  partNumber Int
+  partName   String
+  name       String
+  sortOrder  Int
+
+  @@index([templateId, sortOrder])
+  @@map("audit_stage_template_stages")
+}
+
+model ProjectStage {
+  id                   String        @id @default(cuid())
+  projectId            String
+  project              Project       @relation(fields: [projectId], references: [id], onDelete: Restrict)
+  partName             String?
+  name                 String
+  sortOrder            Int
+  ownerName            String?
+  status               StageStatus   @default(NOT_STARTED)
+  targetDate           DateTime?     @db.Date
+  actualCompletionDate DateTime?     @db.Date
+  version              Int           @default(1)
+  createdAt            DateTime      @default(now())
+  updatedAt            DateTime      @updatedAt
+  actionPoints         ActionPoint[]
+
+  @@index([projectId, sortOrder])
+  @@map("project_stages")
+}
+
+// ---------------------------------------------------------------- Action points
+
+model ActionPoint {
+  id                 String        @id @default(cuid())
+  // Legacy SN from the Excel tracker: display/reference only, never an identifier.
+  legacySn           String?
+  title              String
+  activityTypeId     String?
+  activityType       ActivityType? @relation(fields: [activityTypeId], references: [id])
+  projectId          String?
+  project            Project?      @relation(fields: [projectId], references: [id])
+  projectStageId     String?
+  projectStage       ProjectStage? @relation(fields: [projectStageId], references: [id], onDelete: SetNull)
+  // Free-text current stage, optional (blank is valid).
+  currentStage       String?
+  ownerName          String?
+  originalTargetDate DateTime?     @db.Date
+  // Non-date value from the source (e.g. "Ongoing"); preserved verbatim.
+  originalTargetText String?
+  revisedTargetDate  DateTime?     @db.Date
+  revisedTargetText  String?
+  priority           Priority?
+  status             ActionStatus  @default(NOT_STARTED)
+  feedback           String?
+  nextAction         String?
+  blocker            String?
+  // Restricted items are only visible to administrators.
+  restricted         Boolean       @default(false)
+  // Tracker order (defaults to the original Excel row order).
+  sortOrder          Int           @default(0)
+  // Optimistic concurrency control.
+  version            Int           @default(1)
+
+  // Original imported values (never modified after import).
+  sourceStatus     String?
+  sourceDelays     String?
+  sourcePriority   String?
+  sourceTargetRaw  String?
+  sourceRevisedRaw String?
+  sourceSheet      String?
+  sourceRow        Int?
+  // sha256(file) + sheet + row: guarantees a workbook row is imported at most once.
+  importKey        String?      @unique
+  importBatchId    String?
+  importBatch      ImportBatch? @relation(fields: [importBatchId], references: [id])
+
+  // Client-generated key that makes "create" requests idempotent.
+  clientRequestId    String?  @unique
+  createdInMeetingId String?
+  createdInMeeting   Meeting? @relation("CreatedInMeeting", fields: [createdInMeetingId], references: [id])
+
+  createdById String?
+  createdBy   User?    @relation("ApCreatedBy", fields: [createdById], references: [id])
+  updatedById String?
+  updatedBy   User?    @relation("ApUpdatedBy", fields: [updatedById], references: [id])
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  changes         ActionPointChange[]
+  deadlineChanges DeadlineChange[]
+  agendaItems     MeetingAgendaItem[]
+  meetingUpdates  MeetingUpdate[]
+  legacyRecords   LegacyHistoryRecord[]
+
+  @@index([status])
+  @@index([projectId])
+  @@index([ownerName])
+  @@index([sortOrder])
+  @@map("action_points")
+}
+
+model ActionPointChange {
+  id            String       @id @default(cuid())
+  actionPointId String
+  actionPoint   ActionPoint  @relation(fields: [actionPointId], references: [id], onDelete: Restrict)
+  // One user save produces one group of field changes.
+  changeGroupId String
+  field         String
+  oldValue      String?
+  newValue      String?
+  source        ChangeSource
+  meetingId     String?
+  meeting       Meeting?     @relation(fields: [meetingId], references: [id])
+  changedById   String?
+  changedBy     User?        @relation("ChangeBy", fields: [changedById], references: [id])
+  changedAt     DateTime     @default(now())
+
+  @@index([actionPointId, changedAt])
+  @@index([meetingId])
+  @@map("action_point_changes")
+}
+
+model DeadlineChange {
+  id            String             @id @default(cuid())
+  actionPointId String
+  actionPoint   ActionPoint        @relation(fields: [actionPointId], references: [id], onDelete: Restrict)
+  kind          DeadlineChangeKind
+  previousDate  DateTime?          @db.Date
+  previousText  String?
+  newDate       DateTime?          @db.Date
+  newText       String?
+  reason        String?
+  meetingId     String?
+  meeting       Meeting?           @relation(fields: [meetingId], references: [id])
+  changedById   String?
+  changedBy     User?              @relation("DeadlineBy", fields: [changedById], references: [id])
+  changedAt     DateTime           @default(now())
+
+  @@index([actionPointId, changedAt])
+  @@map("deadline_changes")
+}
+
+// ---------------------------------------------------------------- Meetings
+
+model Meeting {
+  id            String        @id @default(cuid())
+  // One meeting per calendar date prevents accidental duplicates.
+  meetingDate   DateTime      @unique @db.Date
+  status        MeetingStatus @default(DRAFT)
+  organizerId   String
+  organizer     User          @relation("MeetingOrganizer", fields: [organizerId], references: [id])
+  attendees     String?
+  notes         String?
+  // Stored permanently when the meeting is finalized.
+  summary       Json?
+  startedAt     DateTime      @default(now())
+  finalizedAt   DateTime?
+  finalizedById String?
+  version       Int           @default(1)
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  agendaItems     MeetingAgendaItem[]
+  updates         MeetingUpdate[]
+  revisions       MeetingRevision[]
+  createdActions  ActionPoint[]       @relation("CreatedInMeeting")
+  apChanges       ActionPointChange[]
+  deadlineChanges DeadlineChange[]
+
+  @@index([status])
+  @@map("meetings")
+}
+
+model MeetingAgendaItem {
+  id                 String          @id @default(cuid())
+  meetingId          String
+  meeting            Meeting         @relation(fields: [meetingId], references: [id], onDelete: Restrict)
+  actionPointId      String
+  actionPoint        ActionPoint     @relation(fields: [actionPointId], references: [id], onDelete: Restrict)
+  position           Int
+  reviewState        ReviewState     @default(PENDING)
+  // Action point as it was when it entered the agenda (immutable).
+  snapshot           Json
+  // Action point after the last save during the meeting.
+  finalSnapshot      Json?
+  addedDuringMeeting Boolean         @default(false)
+  isNewAction        Boolean         @default(false)
+  reviewedAt         DateTime?
+  reviewedById       String?
+  updates            MeetingUpdate[]
+
+  @@unique([meetingId, actionPointId])
+  @@index([meetingId, position])
+  @@map("meeting_agenda_items")
+}
+
+model MeetingUpdate {
+  id            String            @id @default(cuid())
+  meetingId     String
+  meeting       Meeting           @relation(fields: [meetingId], references: [id], onDelete: Restrict)
+  agendaItemId  String
+  agendaItem    MeetingAgendaItem @relation(fields: [agendaItemId], references: [id], onDelete: Restrict)
+  actionPointId String
+  actionPoint   ActionPoint       @relation(fields: [actionPointId], references: [id], onDelete: Restrict)
+  feedback      String?
+  nextAction    String?
+  blocker       String?
+  // [{ field, oldValue, newValue }]
+  changes       Json
+  createdById   String
+  createdBy     User              @relation("UpdateBy", fields: [createdById], references: [id])
+  createdAt     DateTime          @default(now())
+
+  @@index([meetingId])
+  @@index([actionPointId, createdAt])
+  @@map("meeting_updates")
+}
+
+// Corrections to a finalized meeting are stored as new revisions; the original
+// snapshot and updates are never rewritten.
+model MeetingRevision {
+  id             String   @id @default(cuid())
+  meetingId      String
+  meeting        Meeting  @relation(fields: [meetingId], references: [id], onDelete: Restrict)
+  revisionNumber Int
+  reason         String
+  // { field, oldValue, newValue, meetingUpdateId? }[]
+  changes        Json
+  createdById    String
+  createdBy      User     @relation("RevisionBy", fields: [createdById], references: [id])
+  createdAt      DateTime @default(now())
+
+  @@unique([meetingId, revisionNumber])
+  @@map("meeting_revisions")
+}
+
+// ---------------------------------------------------------------- Import / export / audit
+
+model ImportBatch {
+  id           String       @id @default(cuid())
+  kind         ImportKind
+  status       ImportStatus @default(PREVIEW)
+  fileName     String
+  fileSha256   String
+  fileSize     Int
+  sheetName    String
+  // Parsed preview rows + validation results, kept until commit/cancel.
+  preview      Json
+  summary      Json?
+  uploadedById String
+  uploadedBy   User         @relation("ImportBy", fields: [uploadedById], references: [id])
+  createdAt    DateTime     @default(now())
+  committedAt  DateTime?
+  cancelledAt  DateTime?
+
+  actionPoints  ActionPoint[]
+  legacyRecords LegacyHistoryRecord[]
+
+  @@index([fileSha256, sheetName, kind])
+  @@map("import_batches")
+}
+
+// Raw rows from the older historical tracker (IA-MOM (2)), preserved verbatim.
+model LegacyHistoryRecord {
+  id                  String         @id @default(cuid())
+  importBatchId       String
+  importBatch         ImportBatch    @relation(fields: [importBatchId], references: [id])
+  importKey           String         @unique
+  sourceSheet         String
+  sourceRow           Int
+  actionText          String?
+  projectText         String?
+  ownerText           String?
+  meetingDateRaw      String?
+  meetingDate         DateTime?      @db.Date
+  targetDateRaw       String?
+  revisedDateRaw      String?
+  statusRaw           String?
+  feedback            String?
+  decision            LegacyDecision @default(PENDING)
+  linkedActionPointId String?
+  linkedActionPoint   ActionPoint?   @relation(fields: [linkedActionPointId], references: [id])
+  decidedById         String?
+  decidedAt           DateTime?
+
+  @@index([linkedActionPointId])
+  @@map("legacy_history_records")
+}
+
+model ExportLog {
+  id         String   @id @default(cuid())
+  userId     String
+  user       User     @relation("ExportBy", fields: [userId], references: [id])
+  reportType String
+  parameters Json
+  fileName   String
+  rowCount   Int
+  createdAt  DateTime @default(now())
+
+  @@index([createdAt])
+  @@map("export_logs")
+}
+
+// Technical/security audit log. Append-only (enforced by a database trigger).
+model SystemAuditLog {
+  id         String   @id @default(cuid())
+  actorId    String?
+  actorEmail String?
+  action     String
+  entityType String?
+  entityId   String?
+  details    Json?
+  ip         String?
+  createdAt  DateTime @default(now())
+
+  @@index([createdAt])
+  @@index([action])
+  @@map("system_audit_logs")
+}

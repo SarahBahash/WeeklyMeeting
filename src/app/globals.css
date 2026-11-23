@@ -1,0 +1,22 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root { color-scheme: light; }
+html, body { background: #FFFFFF; color: #172D4D; }
+body { font-size: 14px; -webkit-font-smoothing: antialiased; }
+
+@layer components {
+  .input {
+    @apply w-full rounded-md border border-line bg-white px-3 py-2 text-sm text-navy placeholder:text-muted/70
+      focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/20 disabled:bg-navy-50 disabled:text-muted;
+  }
+  .label { @apply mb-1 block text-xs font-semibold uppercase tracking-wide text-muted; }
+  .card { @apply rounded-xl border border-line bg-white; }
+  .th { @apply sticky top-0 z-10 border-b border-line bg-white px-3 py-2.5 text-left text-xs font-semibold uppercase tracking-wide text-muted; }
+  .td { @apply border-b border-line px-3 py-2.5 align-top text-sm; }
+  .link { @apply text-brand underline-offset-2 hover:underline; }
+}
+
+:focus-visible { outline: 2px solid #25866B; outline-offset: 2px; }
+dialog::backdrop { background: rgba(23, 45, 77, 0.35); }
