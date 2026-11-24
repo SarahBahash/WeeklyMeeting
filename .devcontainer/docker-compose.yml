@@ -1,0 +1,27 @@
+# Codespaces / dev-container demo: app container + PostgreSQL. Synthetic data only.
+services:
+  app:
+    image: mcr.microsoft.com/devcontainers/javascript-node:1-22-bookworm
+    volumes:
+      - ../..:/workspaces:cached
+    command: sleep infinity
+    environment:
+      DATABASE_URL: postgresql://iahub:iahub_demo_only@db:5432/iahub?schema=public
+      DEMO_MODE: "true"
+      # Password for the synthetic test accounts of THIS private demo only.
+      SEED_DEV_PASSWORD: "Demo-Synthetic-2026!"
+      NEXT_TELEMETRY_DISABLED: "1"
+    depends_on:
+      - db
+  db:
+    image: postgres:16
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: iahub
+      POSTGRES_PASSWORD: iahub_demo_only
+      POSTGRES_DB: iahub
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+volumes:
+  pgdata:

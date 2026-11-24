@@ -65,6 +65,16 @@ Then go to **Administration → Import Data** and import the synthetic workbook.
 Local password sign-in is a **development-only** feature. It is switched off automatically when
 `NODE_ENV=production`, whatever `AUTH_LOCAL_ENABLED` says. Production uses SSO only.
 
+## Try the demo in GitHub Codespaces (synthetic data only)
+
+[![Open in GitHub Codespaces](https://github.com/codespaces/badge.svg)](https://codespaces.new/SarahBahash/WeeklyMeeting?quickstart=1)
+
+Click the button, then **Create codespace**. GitHub starts a private copy of the app with PostgreSQL
+and the synthetic sample data, and after about 3–5 minutes opens the site in a new tab (or open it from the
+**PORTS** tab, port 3000). Sign in with `admin@example.test` / `Demo-Synthetic-2026!`; the other roles are
+`organizer@`, `editor@` and `viewer@example.test` with the same password. See `.devcontainer/DEMO.md`.
+Stop the codespace when you are done to save your free monthly hours.
+
 ## Test deployment on Render (synthetic data only)
 
 [![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/SarahBahash/WeeklyMeeting)

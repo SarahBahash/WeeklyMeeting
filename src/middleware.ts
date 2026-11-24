@@ -3,6 +3,14 @@ import { NextResponse, type NextRequest } from "next/server";
 const PUBLIC_PAGES = ["/login"];
 const SESSION_COOKIES = ["iahub_session", "__Host-iahub_session"];
 
+function appUrlHost(): string | null {
+  try {
+    return process.env.APP_URL ? new URL(process.env.APP_URL).host : null;
+  } catch {
+    return null;
+  }
+}
+
 /**
  * Edge middleware: nonce-based Content-Security-Policy, CSRF origin checks for
  * state-changing API calls, and a fast redirect to /login when no session cookie exists.
@@ -13,11 +21,16 @@ export function middleware(req: NextRequest) {
   const isApi = pathname.startsWith("/api/");
 
   if (isApi && !["GET", "HEAD", "OPTIONS"].includes(req.method)) {
+    // The request must come from this application's own origin: the Host / X-Forwarded-Host
+    // it was addressed to, or the configured public APP_URL (needed behind proxies that
+    // rewrite the host, e.g. GitHub Codespaces port forwarding).
     const origin = req.headers.get("origin");
-    const host = req.headers.get("x-forwarded-host") ?? req.headers.get("host");
+    const allowed = new Set(
+      [req.headers.get("host"), req.headers.get("x-forwarded-host"), appUrlHost()].filter((h): h is string => Boolean(h)),
+    );
     let ok = false;
     try {
-      ok = !!origin && !!host && new URL(origin).host === host;
+      ok = !!origin && allowed.has(new URL(origin).host);
     } catch {
       ok = false;
     }

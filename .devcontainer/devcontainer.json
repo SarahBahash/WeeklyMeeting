@@ -1,0 +1,19 @@
+{
+  // One-click DEMO in GitHub Codespaces – SYNTHETIC DATA ONLY.
+  // Starts PostgreSQL + the app, loads the sample workbook and opens the site in the browser.
+  "name": "IA Weekly Meeting Hub – demo (synthetic data)",
+  "dockerComposeFile": "docker-compose.yml",
+  "service": "app",
+  "workspaceFolder": "/workspaces/${localWorkspaceFolderBasename}",
+  "shutdownAction": "stopCompose",
+  "forwardPorts": [3000],
+  "portsAttributes": {
+    "3000": { "label": "IA Weekly Meeting Hub", "onAutoForward": "openBrowser" }
+  },
+  "postCreateCommand": "bash .devcontainer/setup.sh",
+  "postAttachCommand": "bash .devcontainer/start-demo.sh",
+  "hostRequirements": { "cpus": 2, "memory": "4gb" },
+  "customizations": {
+    "codespaces": { "openFiles": [".devcontainer/DEMO.md"] }
+  }
+}
